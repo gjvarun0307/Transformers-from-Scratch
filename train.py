@@ -121,7 +121,7 @@ def train_model(config):
             batch_iterator.set_postfix({f'loss': f"{loss.item():6.3f}"})
 
             # Tensorboard loss
-            writer.add_scaler('train_loss', loss.item(), global_step)
+            writer.add_scalar('train_loss', loss.item(), global_step)
 
             # Backpropagate the loss
             loss.backward()
