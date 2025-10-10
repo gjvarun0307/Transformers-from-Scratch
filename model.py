@@ -127,7 +127,7 @@ class ResidualConnection(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, sublayer):
-        return x + self.dropout(sublayer(self.norm(x))) 
+        return x + self.dropout(sublayer(self.norm(x))) # Although, the paper applies norm at end, after adding with sublayer. LayerNorm(x+ Sublayer(x))
 
 # Encoder Block
 class EncoderBlock(nn.Module):
