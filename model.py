@@ -90,7 +90,7 @@ class MultiHeadAttention(nn.Module):
 
         attn_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)  # (batch_size, h, seq_len, seq_len)
         if mask is not None:
-            attn_score = attn_score.masked_fill(mask == 0, -1e9)  # mask certain tokens
+            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)  # mask certain tokens
         attn_scores = torch.softmax(attn_scores, dim=-1)  # (batch_size, h, seq_len, seq_len)
         if dropout is not None:
             attn_scores = dropout(attn_scores)
