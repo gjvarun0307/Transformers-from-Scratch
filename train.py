@@ -59,9 +59,9 @@ def get_ds(config):
 
     for item in ds_raw:
         src_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
-        trg = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
+        trg_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
         max_len_src = max(max_len_src, len(src_ids))
-        max_len_trg = max(max_len_trg, len(src_ids))
+        max_len_trg = max(max_len_trg, len(trg_ids))
     
     print(f'Max length of src sentence: {max_len_src}')
     print(f'Max length of trg sentence: {max_len_trg}')
@@ -95,7 +95,7 @@ def train_model(config):
         model_filename = get_weights_file_path(config, config['preload'])
         print(f"preloading model {model_filename}")
         state = torch.load(model_filename)
-        initial_epoch = state['epoch'] + 1
+        inital_epoch = state['epoch'] + 1
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
 
