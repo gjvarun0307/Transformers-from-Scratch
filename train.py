@@ -32,6 +32,7 @@ def get_or_build_tokenizer(config, ds, lang):
         tokenizer.pre_tokenizer = Whitespace()
         trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentence(ds, lang), trainer=trainer)
+        tokenizer.save(str(tokenizer_path))
     else:
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
     return tokenizer
@@ -132,14 +133,14 @@ def train_model(config):
 
             global_step += 1
     
-            # Save model
-            model_filename = get_weights_file_path(config, f'{epoch:02d}')
-            torch.save({
-                'epoch': epoch,
-                'model_save_dict': model.state_dict(),
-                "optimeizer_state_dict": optimizer.state_dict(),
-                "global_step": global_step
-            }, model_filename)
+        # Save model
+        model_filename = get_weights_file_path(config, f'{epoch:02d}')
+        torch.save({
+            'epoch': epoch,
+            'model_save_dict': model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "global_step": global_step
+        }, model_filename)
 
 if __name__ == '__main__':
     config = get_config()
