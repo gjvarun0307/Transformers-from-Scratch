@@ -59,7 +59,7 @@ def get_ds(config):
 
     for item in ds_raw:
         src_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
-        trg_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
+        trg_ids = tokenizer_src.encode(item['translation'][config['lang_trg']]).ids
         max_len_src = max(max_len_src, len(src_ids))
         max_len_trg = max(max_len_trg, len(trg_ids))
     
