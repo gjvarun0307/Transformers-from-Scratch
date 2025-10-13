@@ -132,14 +132,14 @@ def train_model(config):
 
             global_step += 1
     
-        # Save model
-        model_filename = get_weights_file_path(config, f'{epoch:02d}')
-        torch.save({
-            'epoch': epoch,
-            'model_save_dict': model.state_dict(),
-            "optimeizer_state_dict": optimizer.state_dict(),
-            "global_step": global_step
-        }, model_filename)
+            # Save model
+            model_filename = get_weights_file_path(config, f'{epoch:02d}')
+            torch.save({
+                'epoch': epoch,
+                'model_save_dict': model.state_dict(),
+                "optimeizer_state_dict": optimizer.state_dict(),
+                "global_step": global_step
+            }, model_filename)
 
 if __name__ == '__main__':
     config = get_config()
