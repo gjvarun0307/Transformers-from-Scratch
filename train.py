@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 
-from dataset import BilingualDataset, casual_mask
+from dataset import BilingualDataset, causal_mask
 from model import make_model
 
 from config import get_weights_file_path, get_config
@@ -18,6 +18,66 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from pathlib import Path
+
+def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_trg, max_len, device):
+    sos_idx = tokenizer_trg.token_to_id("[SOS]")
+    eos_idx = tokenizer_trg.token_to_id("[EOS]")
+
+    encoder_output = model.encode(source, source_mask)
+    # decoder stream
+    decoder_input = torch.empty(1,1).fill_(sos_idx).type_as(source).to(device)
+    print(decoder_input.size())
+    while True:
+        if decoder_input.size(1) == max_len:
+            break
+        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source).to(device)
+        decoder_output = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
+
+        prob = model.project(decoder_output[:,-1])
+
+        _, next_word = torch.max(prob, dim=1)
+        decoder_input = torch.cat([decoder_input, torch.empty(1,1).type_as(source).fill_(next_word.item()).to(device)], dim=1)
+
+        if next_word == eos_idx:
+            break
+    
+    return decoder_input.squeeze(0)
+
+
+# validation
+def get_validation(model, validation_ds, tokenizer_src, tokenizer_trg, max_len, device, num_ex=2):
+    model.eval()
+    count = 0
+
+    source_text = []
+    expected_text = []
+    predicted_text = []
+
+    with torch.no_grad():
+        for batch in validation_ds:
+            count += 1
+
+            encoder_input = batch['encoder_input'].to(device)
+            encoder_mask = batch['encoder_mask'].to(device)
+
+            assert encoder_input.size(0) == 1, "Batch size for validation should be 1"
+
+            model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_trg, max_len, device)
+            model_out_text = tokenizer_trg.decode(model_out.detach().cpu().numpy())
+
+            source_text.append(batch['src_text'][0])
+            expected_text.append(batch['tgt_text'][0])
+            predicted_text.append(model_out_text)
+
+            print("-"*80)
+            print(f"Source Text: {source_text}")
+            print(f"Expected Text: {expected_text}")
+            print(f"predicted Text: {predicted_text}")
+
+            if count >= num_ex:
+                break
+            
+
 
 # Dataset Iterator
 def get_all_sentence(ds, lang):
@@ -59,7 +119,7 @@ def get_ds(config):
 
     for item in ds_raw:
         src_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
-        trg_ids = tokenizer_src.encode(item['translation'][config['lang_trg']]).ids
+        trg_ids = tokenizer_trg.encode(item['translation'][config['lang_trg']]).ids
         max_len_src = max(max_len_src, len(src_ids))
         max_len_trg = max(max_len_trg, len(trg_ids))
     
@@ -67,7 +127,7 @@ def get_ds(config):
     print(f'Max length of trg sentence: {max_len_trg}')
 
     train_dataloader = DataLoader(train_ds, batch_size=config['batch_size'], shuffle=True)
-    val_dataloader = DataLoader(val_ds, batch_size=2, shuffle=True)
+    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_trg
 
@@ -113,7 +173,7 @@ def train_model(config):
 
             # get outputs
             encoder_output = model.encode(encoder_input, encoder_mask)
-            decoder_output = model.decode(encoder_output, decoder_mask, decoder_input, decoder_mask)
+            decoder_output = model.decode(encoder_output, encoder_mask, decoder_input, decoder_mask)
             proj_output = model.project(decoder_output)
 
             label = batch['label'].to(device)
@@ -124,11 +184,9 @@ def train_model(config):
             # Tensorboard loss
             writer.add_scalar('train_loss', loss.item(), global_step)
 
-            # Backpropagate the loss
-            loss.backward()
-
-            # Update the weight
+            # Update the weights
             optimizer.zero_grad()
+            loss.backward()
             optimizer.step()
 
             global_step += 1
@@ -137,7 +195,7 @@ def train_model(config):
         model_filename = get_weights_file_path(config, f'{epoch:02d}')
         torch.save({
             'epoch': epoch,
-            'model_save_dict': model.state_dict(),
+            'model_state_dict': model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "global_step": global_step
         }, model_filename)
