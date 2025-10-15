@@ -26,11 +26,10 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_trg, max_
     encoder_output = model.encode(source, source_mask)
     # decoder stream
     decoder_input = torch.empty(1,1).fill_(sos_idx).type_as(source).to(device)
-    print(decoder_input.size())
     while True:
         if decoder_input.size(1) == max_len:
             break
-        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source).to(device)
+        decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
         decoder_output = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
 
         prob = model.project(decoder_output[:,-1])
