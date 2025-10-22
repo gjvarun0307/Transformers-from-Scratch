@@ -44,13 +44,13 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_trg, max_
 
 
 # validation
-def get_validation(model, validation_ds, tokenizer_src, tokenizer_trg, max_len, device, num_ex=2):
+def get_validation(model, validation_ds, tokenizer_src, tokenizer_trg, max_len, print_msg, device, num_ex=2):
     model.eval()
     count = 0
 
-    source_text = []
-    expected_text = []
-    predicted_text = []
+    source_texts = []
+    expected_texts = []
+    predicted_texts = []
 
     with torch.no_grad():
         for batch in validation_ds:
@@ -62,18 +62,21 @@ def get_validation(model, validation_ds, tokenizer_src, tokenizer_trg, max_len, 
             assert encoder_input.size(0) == 1, "Batch size for validation should be 1"
 
             model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_trg, max_len, device)
+
+            source_text = batch["src_text"][0]
+            target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_trg.decode(model_out.detach().cpu().numpy())
 
-            source_text.append(batch['src_text'][0])
-            expected_text.append(batch['tgt_text'][0])
-            predicted_text.append(model_out_text)
+            source_texts.append(batch['src_text'][0])
+            expected_texts.append(batch['tgt_text'][0])
+            predicted_texts.append(model_out_text)
 
-            print("-"*80)
-            print(f"Source Text: {source_text}")
-            print(f"Expected Text: {expected_text}")
-            print(f"predicted Text: {predicted_text}")
+            print_msg("-"*80)
+            print_msg(f"Source Text: {source_text}")
+            print_msg(f"Expected Text: {target_text}")
+            print_msg(f"predicted Text: {model_out_text}")
 
-            if count >= num_ex:
+            if count == num_ex:
                 break
             
 
@@ -98,7 +101,7 @@ def get_or_build_tokenizer(config, ds, lang):
 
 # Get Dataset
 def get_ds(config):
-    ds_raw = load_dataset('opus_books', f'{config["lang_src"]}-{config["lang_trg"]}', split='train')
+    ds_raw = load_dataset(f'{config['datasource']}', f'{config["lang_src"]}-{config["lang_trg"]}', split='train')
 
     # Build Tokenizer
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
@@ -161,6 +164,7 @@ def train_model(config):
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
 
     for epoch in range(inital_epoch, config['num_epochs']):
+        torch.cuda.empty_cache()
         model.train()
         batch_iterator = tqdm(train_dataloader, desc=f'Processing epoch {epoch:02d}')
         for batch in batch_iterator:
@@ -182,13 +186,16 @@ def train_model(config):
 
             # Tensorboard loss
             writer.add_scalar('train_loss', loss.item(), global_step)
+            writer.flush()
 
             # Update the weights
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
 
             global_step += 1
+        
+        get_validation(model, val_dataloader, tokenizer_src, tokenizer_trg, config['seq_len'], lambda msg: batch_iterator.write(msg), device)
     
         # Save model
         model_filename = get_weights_file_path(config, f'{epoch:02d}')

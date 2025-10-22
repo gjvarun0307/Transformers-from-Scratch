@@ -78,6 +78,6 @@ class BilingualDataset(Dataset):
             "tgt_text": tgt_text
         }
     
-def causal_mask(seq_len):
-    mask = torch.triu(torch.ones(1, seq_len, seq_len), diagonal=1).type(torch.int)
+def causal_mask(size):
+    mask = torch.triu(torch.ones(1, size, size), diagonal=1).type(torch.int)
     return mask == 0
